@@ -1,8 +1,165 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # Copyright muflax <mail@muflax.com>, 2010
 # License: GNU GPL 3 <http://www.gnu.org/copyleft/gpl.html>
 
+# hey, I only use 2.* because of cairo, ok?
+from __future__ import print_function, unicode_literals, division
+
+import math
+import optparse
+from random import randint
+import sys
+
+# I use pygame because I'm lame and cairo because I'm a whore
+import cairo
+import pygame
+from pygame.locals import *
+
+# yeah, the code mutated a bit... sorry :<
+class Pororo(object):
+    """a Pororo"""
+    def __init__(self, timer):
+        self.timer = timer
+        self.n = len(timer)
+
+    def init_screen(self):
+        """initialize the screen"""
+        self.resize( (600, 600) )
+        self.clock = pygame.time.Clock()
+        self.gogogo = 0
+        self.bgcolor = (0,0,0)
+
+    def resize(self, size):
+        # resize variables
+        self.w, self.h = size
+        self.r = min(self.w, self.h) / 2
+        self.cx, self.cy = self.w / 2, self.h / 2
+        
+        # resize screen
+        self.screen = pygame.display.set_mode(size,
+                                              RESIZABLE|DOUBLEBUF)
+        self.s = pygame.Surface(size)
+
+        # resize worms
+        for i, t in enumerate(self.timer, start=2):
+            t.resize(size, i, self.n+1)
+
+    def run(self):
+        while 1:
+            dt = self.clock.tick(30)
+            for event in pygame.event.get():
+                if event.type == KEYDOWN:
+                    if event.key == K_q:
+                        self.quit()
+                    elif event.key == K_SPACE:
+                        self.gogogo ^= 1
+                elif event.type == VIDEORESIZE:
+                    self.resize(event.size)
+            
+            if self.gogogo:
+                must_fill = False
+                for t in self.timer:
+                    must_fill |= t.update(dt)
+                
+                if must_fill:    
+                    self.s.fill(self.bgcolor)
+                
+                self.s.lock()
+                for t in self.timer:
+                    t.redraw(must_fill)
+                    for x, y in t.points:
+                        pygame.draw.circle(self.s, t.color, (x, y),
+                                           t.circle_width)
+                self.s.unlock()
+            self.screen.blit(self.s, (0,0))
+            pygame.display.flip()
+
+    def quit(self):
+        pygame.quit()
+        sys.exit(0)
+
+class TimeWorm(object):
+    """one timer to track
+    
+        n -> steps per cycle
+        per_step -> seconds per step
+        name -> label to show, if any #TODO: implement :D
+    """
+    def __init__(self, per_step=1, n=100, name=None):
+        self.n = n
+        self.per_step = per_step * 1000
+        self.name = name
+        self.t = 0.0 # current time
+        self.i = 0.0 # current position
+        self.t_max = self.n * self.per_step
+        self.margin = 0.1 # percent of circle_width to leave empty
+        self.sound = pygame.mixer.Sound("beep.wav")
+        self.color = ((100 + randint(0,255)) // 2,
+                      (100 + randint(0,255)) // 2,
+                      (255 + randint(0,255)) // 2)
+
+    def new_points(self):
+        angle = self.start_angle
+        self.points = []
+        max_angle = 2 * math.pi * (self.i / self.n)
+        while angle <= max_angle:
+            point = (int(self.cx + math.sin(angle) * self.arc_r),
+                     int(self.cy - math.cos(angle) * self.arc_r))
+            self.points.append(point)
+            angle += self.alpha
+        self.start_angle = max_angle
+
+    def resize(self, size, i, n):
+        """resize coords"""
+        self.w, self.h = size
+        self.cx, self.cy = self.w / 2, self.h / 2
+        self.r = min(self.w, self.h) / 2
+        
+        self.arc_width = self.r / n
+        margin = self.arc_width / 2 * self.margin
+        self.circle_width = int(self.arc_width / 2 - margin)
+        self.arc_r = (i-1) * self.arc_width + margin + self.circle_width / 2
+        self.alpha = math.asin(1 / self.arc_r)
+
+        self.start_angle = 0.0
+        self.points = []
+
+        self.screen = pygame.display.set_mode(size,
+                                              RESIZABLE|DOUBLEBUF)
+    def redraw(self, update=True):
+        if update:
+            self.start_angle = 0.0
+        self.new_points()        
+
+    def update(self, dt):
+        """update timer by dt"""
+        must_fill = False
+        self.t += dt
+        if self.t >= self.t_max:
+            self.t %= self.t_max
+            must_fill = True
+            self.alarm()
+            
+        self.i = self.t / self.per_step
+        return must_fill
+
+    def alarm(self):
+        """sound a cute alarm"""
+        self.sound.play()
+
 def main():
+    pygame.init()
+    parser = optparse.OptionParser()
+    opt, args = parser.parse_args()
+
+    #TODO: construct timer from input
+    timer = [TimeWorm(per_step=1, n=20, name="page"),
+             TimeWorm(per_step=2, n=200, name="book")
+            ]
+    
+    p = Pororo(timer)
+    p.init_screen()
+    p.run()
 
 if __name__ == "__main__":
     main()
