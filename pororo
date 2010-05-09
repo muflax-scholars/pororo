@@ -11,11 +11,16 @@ from random import randint
 import sys
 
 # I use pygame because I'm lame and cairo because I'm a whore
-import cairo
+#import cairo
 import pygame
 from pygame.locals import *
 
 # yeah, the code mutated a bit... sorry :<
+# TODO:
+#       * show labels for each worm? (would use cairo)
+#       * more complex behaviour, like (10+2)*5
+#       * make the usage understandable for anyone except me
+
 class Pororo(object):
     """a Pororo"""
     def __init__(self, timer):
@@ -150,14 +155,23 @@ class TimeWorm(object):
 
 def main():
     pygame.init()
-    parser = optparse.OptionParser()
+    parser = optparse.OptionParser(usage="""
+    step_size/steps for each worm
+    You can leave out step_size and it will default to 1 or the last steps, 
+    i.e. 1/20 /300 is identical to 1/20 20/300.""")
     opt, args = parser.parse_args()
 
-    #TODO: construct timer from input
-    timer = [TimeWorm(per_step=1, n=20, name="page"),
-             TimeWorm(per_step=2, n=200, name="book")
-            ]
+    timer = []
+    last_n = 1
+    for arg in args:
+        per_step, n = arg.split("/")
+        per_step = int(per_step) if per_step else last_n
+        n = last_n = int(n)
+        timer.append(TimeWorm(per_step, n))
     
+    if not timer:
+        parser.error("no timer specified")
+
     p = Pororo(timer)
     p.init_screen()
     p.run()
