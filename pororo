@@ -172,7 +172,6 @@ def main():
         else:
             per_step = float(per_step)
         
-        print(per_step, n)
         timer.append(TimeWorm(per_step, n))
     
     if not timer:
