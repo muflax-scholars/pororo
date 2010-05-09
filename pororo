@@ -56,21 +56,22 @@ class Pororo(object):
                 elif event.type == VIDEORESIZE:
                     self.resize(event.size)
             
+            must_fill = False
+            
             if self.gogogo:
-                must_fill = False
                 for t in self.timer:
                     must_fill |= t.update(dt)
                 
-                if must_fill:    
-                    self.s.fill(self.bgcolor)
-                
-                self.s.lock()
-                for t in self.timer:
-                    t.redraw(must_fill)
-                    for x, y in t.points:
-                        pygame.draw.circle(self.s, t.color, (x, y),
-                                           t.circle_width)
-                self.s.unlock()
+            if must_fill:    
+                self.s.fill(self.bgcolor)
+            
+            self.s.lock()
+            for t in self.timer:
+                t.redraw(must_fill)
+                for x, y in t.points:
+                    pygame.draw.circle(self.s, t.color, (x, y),
+                                       t.circle_width)
+            self.s.unlock()
             self.screen.blit(self.s, (0,0))
             pygame.display.flip()
 
