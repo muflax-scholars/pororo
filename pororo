@@ -156,16 +156,23 @@ def main():
     pygame.init()
     parser = optparse.OptionParser(usage="""
     step_size/steps for each worm
-    You can leave out step_size and it will default to 1 or the last steps, 
-    i.e. 1/20 /300 is identical to 1/20 20/300.""")
+    You can leave out step_size and it will default to 1s or the total time of
+    the timer before it, i.e. 1/20 /300 is identical to 1/20 20/300.""")
     opt, args = parser.parse_args()
 
     timer = []
-    last_n = 1
     for arg in args:
         per_step, n = arg.split("/")
-        per_step = int(per_step) if per_step else last_n
-        n = last_n = int(n)
+        n = float(n)
+        if not per_step:
+            if timer:
+                per_step = timer[-1].per_step * timer[-1].n / 1000
+            else:
+                per_step = 1.0
+        else:
+            per_step = float(per_step)
+        
+        print(per_step, n)
         timer.append(TimeWorm(per_step, n))
     
     if not timer:
