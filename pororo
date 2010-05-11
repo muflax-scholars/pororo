@@ -9,6 +9,7 @@ import base64
 import math
 import optparse
 from random import randint
+import re
 import cStringIO as StringIO
 import sys
 
@@ -243,22 +244,39 @@ def main():
     pygame.init()
     parser = optparse.OptionParser(usage="""
     step_size/steps for each worm
+
     You can leave out step_size and it will default to 1s or the total time of
-    the timer before it, i.e. 1/20 /300 is identical to 1/20 20/300.""")
+    the timer before it, i.e. 1/20 /300 is identical to 1/20 20/300.
+                                   
+    You can also leave out steps and it will default to 1.
+                                   
+    Finally, you can use use 1m/5 to mean 60/5""")
     opt, args = parser.parse_args()
 
     timer = []
+    per_step = n = 1
+    time_re = re.compile("""
+                         (?P<per_step>
+                            (?P<step_size> \d+(\.\d+)? ) 
+                            (?P<step_unit>[sm])? 
+                         )?
+                         /
+                         (?P<steps> \d+)?
+                         """, re.X)
     for arg in args:
-        per_step, n = arg.split("/")
-        n = float(n)
-        if not per_step:
-            if timer:
-                per_step = timer[-1].per_step * timer[-1].n / 1000
-            else:
-                per_step = 1.0
+        m = time_re.match(arg)
+        if m.group("per_step"):
+            per_step = float(m.group("step_size"))
+            if m.group("step_unit") == "m":
+                per_step *= 60
         else:
-            per_step = float(per_step)
+            per_step = per_step * n
         
+        if m.group("steps"):
+            n = float(m.group("steps"))
+        else:
+            n = 1
+
         timer.append(TimeWorm(per_step, n))
     
     if not timer:
