@@ -6,6 +6,7 @@
 from __future__ import print_function, unicode_literals, division
 
 import base64
+from collections import deque
 import math
 import optparse
 from random import randint
@@ -21,7 +22,6 @@ from pygame.locals import *
 # yeah, the code mutated a bit... sorry :<
 # TODO:
 #       * show labels for each worm? (would use cairo)
-#       * more complex behaviour, like (10+2)*5
 #       * make the usage understandable for anyone except me
 
 BEEP = base64.b64decode(
@@ -176,15 +176,14 @@ class TimeWorm(object):
     
         n -> steps per cycle
         per_step -> seconds per step
-        name -> label to show, if any #TODO: implement :D
     """
-    def __init__(self, per_step=1, n=100, name=None):
+    def __init__(self, per_step, n):
         self.n = n
-        self.per_step = per_step * 1000
-        self.name = name
+        self.per_step = deque([s * 1000 for s in per_step])
         self.t = 0.0 # current time
         self.i = 0.0 # current position
-        self.t_max = self.n * self.per_step
+        self.cur_step = self.per_step.popleft()
+        self.t_max = self.n * self.cur_step
         self.margin = 0.1 # percent of circle_width to leave empty
         self.sound = pygame.mixer.Sound(StringIO.StringIO(BEEP))
         self.color = ((100 + randint(0,255)) // 2,
@@ -230,10 +229,16 @@ class TimeWorm(object):
         self.t += dt
         if self.t >= self.t_max:
             self.t %= self.t_max
+            
+            # go to next phase in cycle
+            self.per_step.append(self.cur_step)
+            self.cur_step = self.per_step.popleft()
+            self.t_max = self.n * self.cur_step
+            
             must_fill = True
             self.alarm()
             
-        self.i = self.t / self.per_step
+        self.i = self.t / self.cur_step
         return must_fill
 
     def alarm(self):
@@ -248,34 +253,47 @@ def main():
     You can leave out step_size and it will default to 1s or the total time of
     the timer before it, i.e. 1/20 /300 is identical to 1/20 20/300.
                                    
-    You can also leave out steps and it will default to 1.
+    You can leave out steps and it will default to 1.
                                    
-    Finally, you can use use 1m/5 to mean 60/5""")
+    You can also use minutes, like in 1m/5, to mean 60/5.
+                                   
+    Finally, you can use more complex behaviours, like the famous (10+2)*5, be
+    defining a chain with +, as in 10m+2m/5.""")
     opt, args = parser.parse_args()
 
     timer = []
-    per_step = n = 1
+    per_step = [1.0]
+    n = 1
     time_re = re.compile("""
                          (?P<per_step>
-                            (?P<step_size> \d+(\.\d+)? ) 
-                            (?P<step_unit>[sm])? 
+                            ( \d+(\.\d+)? ) ([sm])?
+                            (\+ 
+                                ( \d+(\.\d+)? ) ([sm])?
+                            )*
                          )?
                          /
                          (?P<steps> \d+)?
                          """, re.X)
     for arg in args:
         m = time_re.match(arg)
-        if m.group("per_step"):
-            per_step = float(m.group("step_size"))
-            if m.group("step_unit") == "m":
-                per_step *= 60
+        if m:
+            if m.group("per_step"):
+                per_step = []
+                for step in m.group("per_step").split("+"):
+                    if step[-1] == "m":
+                        step = float(step[:-1]) * 60
+                    else:
+                        step = float(step)
+                    per_step.append(step)
+            else:
+                per_step = [sum(per_step) * n]
+            
+            if m.group("steps"):
+                n = float(m.group("steps"))
+            else:
+                n = 1
         else:
-            per_step = per_step * n
-        
-        if m.group("steps"):
-            n = float(m.group("steps"))
-        else:
-            n = 1
+            parser.error("invalid arg: " + arg)
 
         timer.append(TimeWorm(per_step, n))
     
