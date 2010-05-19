@@ -111,16 +111,16 @@ AIjYoXyiLnYAlzXUYM8h8ZHAhE0ADg==""")
 
 class Pororo(object):
     """a Pororo"""
-    def __init__(self, timer, size=(300, 300)):
+    def __init__(self, timer, opt):
         self.timer = timer
         self.n = len(timer)
-        self.size = size
+        self.size = opt.size
+        self.gogogo = opt.paused^1
 
     def init_screen(self):
         """initialize the screen"""
         self.resize( self.size )
         self.clock = pygame.time.Clock()
-        self.gogogo = 1
         self.bgcolor = (0,0,0)
 
     def resize(self, size):
@@ -276,6 +276,8 @@ def main():
                                    
     To pause pororo, press Space. To quit, press q.""")
     
+    parser.add_option("-p", "--paused", help="start paused", dest="paused",
+                      action="store_true", default=False)
     parser.add_option("-s", "--size", help="start in size WxH", dest="size",
                       nargs=2, type="int", default=(300, 300))
     opt, args = parser.parse_args()
@@ -322,7 +324,7 @@ def main():
     if not timer:
         parser.error("no timer specified")
 
-    p = Pororo(timer, opt.size)
+    p = Pororo(timer, opt)
     p.init_screen()
     p.run()
 
