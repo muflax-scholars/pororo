@@ -6,7 +6,6 @@
 from __future__ import print_function, unicode_literals, division
 
 import base64
-from collections import deque
 import math
 import optparse
 from random import randint
@@ -23,6 +22,7 @@ from pygame.locals import *
 # TODO:
 #       * show labels for each worm? (would use cairo)
 #       * make the usage understandable for anyone except me
+#       * skip turns?
 
 BEEP = base64.b64decode(
 """T2dnUwACAAAAAAAAAABaoh12AAAAABFppXEBHgF2b3JiaXMAAAAAAUSsAAAAAAAAgDgBAAAAAAC4
@@ -111,15 +111,16 @@ AIjYoXyiLnYAlzXUYM8h8ZHAhE0ADg==""")
 
 class Pororo(object):
     """a Pororo"""
-    def __init__(self, timer):
+    def __init__(self, timer, size=(300, 300)):
         self.timer = timer
         self.n = len(timer)
+        self.size = size
 
     def init_screen(self):
         """initialize the screen"""
-        self.resize( (600, 600) )
+        self.resize( self.size )
         self.clock = pygame.time.Clock()
-        self.gogogo = 0
+        self.gogogo = 1
         self.bgcolor = (0,0,0)
 
     def resize(self, size):
@@ -153,7 +154,11 @@ class Pororo(object):
             
             if self.gogogo:
                 for t in self.timer:
-                    must_fill |= t.update(dt)
+                    try:
+                        must_fill |= t.update(dt)
+                    except TimeWormDone as e:
+                        if e[0] == self.timer[-1]:
+                            self.quit()
                 
             if must_fill:    
                 self.s.fill(self.bgcolor)
@@ -171,6 +176,9 @@ class Pororo(object):
         pygame.quit()
         sys.exit(0)
 
+class TimeWormDone(BaseException):
+    """signals that the worm has finished all its turns"""
+
 class TimeWorm(object):
     """one timer to track
     
@@ -179,11 +187,10 @@ class TimeWorm(object):
     """
     def __init__(self, per_step, n):
         self.n = n
-        self.per_step = deque([s * 1000 for s in per_step])
+        self.per_step = [s * 1000 for s in per_step]
+        self.queue = self.per_step[:]
         self.t = 0.0 # current time
-        self.i = 0.0 # current position
-        self.cur_step = self.per_step.popleft()
-        self.t_max = self.n * self.cur_step
+        self.t_max = self.queue[0]
         self.margin = 0.1 # percent of circle_width to leave empty
         self.sound = pygame.mixer.Sound(StringIO.StringIO(BEEP))
         self.color = ((100 + randint(0,255)) // 2,
@@ -193,7 +200,7 @@ class TimeWorm(object):
     def new_points(self):
         angle = self.start_angle
         self.points = []
-        max_angle = 2 * math.pi * (self.i / self.n)
+        max_angle = 2 * math.pi * (self.t / self.t_max)
         while angle <= max_angle:
             point = (int(self.cx + math.sin(angle) * self.arc_r),
                      int(self.cy - math.cos(angle) * self.arc_r))
@@ -231,14 +238,19 @@ class TimeWorm(object):
             self.t %= self.t_max
             
             # go to next phase in cycle
-            self.per_step.append(self.cur_step)
-            self.cur_step = self.per_step.popleft()
-            self.t_max = self.n * self.cur_step
+            self.queue.pop(0)
+            if not self.queue:
+                self.queue = self.per_step[:]
+                if self.n > 1: # still turns to do
+                    self.n -= 1
+                elif self.n == 1:
+                    self.n = 0
+                    raise TimeWormDone(self)
+            self.t_max = self.queue[0]
             
             must_fill = True
             self.alarm()
             
-        self.i = self.t / self.cur_step
         return must_fill
 
     def alarm(self):
@@ -248,17 +260,24 @@ class TimeWorm(object):
 def main():
     pygame.init()
     parser = optparse.OptionParser(usage="""
-    step_size/steps for each worm
+    Give "step_size/steps" for each timer as an argument. A timer will take
+    step_size seconds for own complete circle and to steps circles in total.
 
     You can leave out step_size and it will default to 1s or the total time of
-    the timer before it, i.e. 1/20 /300 is identical to 1/20 20/300.
+    the timer before it, i.e. 2/20 /300 is identical to 2/20 40/300. You can
+    also give step_size in minutes, like 1m/10 for a 1 minute timer with 10
+    turns. 
                                    
-    You can leave out steps and it will default to 1.
+    You can leave out steps to make the time repeat itself indefinetely. Pororo
+    will terminate, however, if the last specified timer terminates.
                                    
-    You can also use minutes, like in 1m/5, to mean 60/5.
+    Finally, you can use more complex behaviours, like the famous (10+2)*5, by
+    defining a chain with +, as in 10m+2m/5.
                                    
-    Finally, you can use more complex behaviours, like the famous (10+2)*5, be
-    defining a chain with +, as in 10m+2m/5.""")
+    To pause pororo, press Space. To quit, press q.""")
+    
+    parser.add_option("-s", "--size", help="start in size WxH", dest="size",
+                      nargs=2, type="int", default=(300, 300))
     opt, args = parser.parse_args()
 
     timer = []
@@ -286,12 +305,15 @@ def main():
                         step = float(step)
                     per_step.append(step)
             else:
-                per_step = [sum(per_step) * n]
+                if n:
+                    per_step = [sum(per_step) * n]
+                else:
+                    per_step = [sum(per_step) * 1]
             
             if m.group("steps"):
                 n = float(m.group("steps"))
             else:
-                n = 1
+                n = 0
         else:
             parser.error("invalid arg: " + arg)
 
@@ -300,7 +322,7 @@ def main():
     if not timer:
         parser.error("no timer specified")
 
-    p = Pororo(timer)
+    p = Pororo(timer, opt.size)
     p.init_screen()
     p.run()
 
