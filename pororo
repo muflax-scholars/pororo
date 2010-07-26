@@ -12,6 +12,7 @@ from random import randint
 import re
 import cStringIO as StringIO
 import sys
+import time
 
 # I use pygame because I'm lame and cairo because I'm a whore
 #import cairo
@@ -158,6 +159,8 @@ class Pororo(object):
                         must_fill |= t.update(dt)
                     except TimeWormDone as e:
                         if e[0] == self.timer[-1]:
+                            # wait for final sound to play
+                            time.sleep(0.23)
                             self.quit()
                 
             if must_fill:    
@@ -240,6 +243,7 @@ class TimeWorm(object):
             # go to next phase in cycle
             self.queue.pop(0)
             if not self.queue:
+                self.alarm()
                 self.queue = self.per_step[:]
                 if self.n > 1: # still turns to do
                     self.n -= 1
@@ -249,7 +253,6 @@ class TimeWorm(object):
             self.t_max = self.queue[0]
             
             must_fill = True
-            self.alarm()
             
         return must_fill
 
