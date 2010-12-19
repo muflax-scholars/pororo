@@ -242,8 +242,8 @@ class TimeWorm(object):
             
             # go to next phase in cycle
             self.queue.pop(0)
+            self.alarm()
             if not self.queue:
-                self.alarm()
                 self.queue = self.per_step[:]
                 if self.n > 1: # still turns to do
                     self.n -= 1
